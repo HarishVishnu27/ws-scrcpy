@@ -9,7 +9,6 @@ import { DisplayInfo } from '../../DisplayInfo';
 import { ToolBoxButton } from '../../toolbox/ToolBoxButton';
 import SvgImage from '../../ui/SvgImage';
 import { PlayerClass } from '../../player/BasePlayer';
-import { ToolBoxCheckbox } from '../../toolbox/ToolBoxCheckbox';
 import { DeviceTracker } from './DeviceTracker';
 import { Attribute } from '../../Attribute';
 import { StreamReceiverScrcpy } from './StreamReceiverScrcpy';
@@ -19,13 +18,6 @@ import { BaseClient } from '../../client/BaseClient';
 interface ConfigureScrcpyEvents {
     closed: { dialog: ConfigureScrcpy; result: boolean };
 }
-
-type Range = {
-    max: number;
-    min: number;
-    step: number;
-    formatter?: (value: number) => string;
-};
 
 export class ConfigureScrcpy extends BaseClient<ParamsStreamScrcpy, ConfigureScrcpyEvents> {
     private readonly TAG: string;
@@ -186,23 +178,6 @@ export class ConfigureScrcpy extends BaseClient<ParamsStreamScrcpy, ConfigureScr
         }
     };
 
-    private onPlayerChange = (): void => {
-        this.updateVideoSettingsForPlayer();
-    };
-
-    private onDisplayIdChange = (): void => {
-        const select = this.displayIdSelectElement;
-        if (!select || !this.streamReceiver) {
-            return;
-        }
-        const value = select.options[select.selectedIndex].value;
-        const displayId = parseInt(value, 10);
-        if (!isNaN(displayId)) {
-            this.displayInfo = this.streamReceiver.getDisplayInfo(displayId);
-        }
-        this.updateVideoSettingsForPlayer();
-    };
-
     private getPlayer(): PlayerClass | undefined {
         if (!this.playerSelectElement) {
             return;
@@ -307,34 +282,6 @@ export class ConfigureScrcpy extends BaseClient<ParamsStreamScrcpy, ConfigureScr
         }
     }
 
-    private appendBasicInput(
-        parent: HTMLElement,
-        opts: { label: string; id: string; range?: Range },
-    ): HTMLInputElement {
-        const label = document.createElement('label');
-        label.classList.add('label');
-        label.innerText = `${opts.label}:`;
-        label.id = `label_${opts.id}_${this.escapedUdid}`;
-        parent.appendChild(label);
-        const input = document.createElement('input');
-        input.classList.add('input');
-        input.id = label.htmlFor = `${opts.id}_${this.escapedUdid}`;
-        const { range } = opts;
-        if (range) {
-            label.setAttribute('title', opts.label);
-            input.oninput = () => {
-                const value = range.formatter ? range.formatter(parseInt(input.value, 10)) : input.value;
-                label.innerText = `${opts.label} (${value}):`;
-            };
-            input.setAttribute('type', 'range');
-            input.setAttribute('max', range.max.toString());
-            input.setAttribute('min', range.min.toString());
-            input.setAttribute('step', range.step.toString());
-        }
-        parent.appendChild(input);
-        return input;
-    }
-
     private getNumberValueFromInput(name: string): number {
         const value = (document.getElementById(`${name}_${this.escapedUdid}`) as HTMLInputElement).value;
         return parseInt(value, 10);
@@ -385,18 +332,6 @@ export class ConfigureScrcpy extends BaseClient<ParamsStreamScrcpy, ConfigureScr
         return this.fitToScreenCheckbox.checked;
     }
 
-    private getPreviouslyUsedPlayer(): string {
-        if (!window.localStorage) {
-            return '';
-        }
-        const result = window.localStorage.getItem(this.playerStorageKey);
-        if (result) {
-            return result;
-        } else {
-            return '';
-        }
-    }
-
     private setPreviouslyUsedPlayer(playerName: string): void {
         if (!window.localStorage) {
             return;
@@ -428,6 +363,7 @@ export class ConfigureScrcpy extends BaseClient<ParamsStreamScrcpy, ConfigureScr
         dialogHeader.appendChild(deviceName);
         const dialogBody = (this.dialogBody = document.createElement('div'));
         dialogBody.classList.add('dialog-body', blockClass, dialogName, 'hidden');
+        // Player is locked to H264 Converter - create disabled display only
         const playerWrapper = document.createElement('div');
         playerWrapper.classList.add('controls');
         const playerLabel = document.createElement('label');
@@ -437,109 +373,97 @@ export class ConfigureScrcpy extends BaseClient<ParamsStreamScrcpy, ConfigureScr
         const playerSelect = (this.playerSelectElement = document.createElement('select'));
         playerSelect.classList.add('input');
         playerSelect.id = playerLabel.htmlFor = `player_${this.escapedUdid}`;
+        playerSelect.disabled = true; // Lock the player selection
         playerWrapper.appendChild(playerSelect);
         dialogBody.appendChild(playerWrapper);
-        const previouslyUsedPlayer = this.getPreviouslyUsedPlayer();
-        StreamClientScrcpy.getPlayers().forEach((playerClass, index) => {
-            const { playerFullName } = playerClass;
-            const optionElement = document.createElement('option');
-            optionElement.setAttribute('value', playerFullName);
-            optionElement.innerText = playerFullName;
-            playerSelect.appendChild(optionElement);
-            if (playerFullName === previouslyUsedPlayer) {
-                playerSelect.selectedIndex = index;
-            }
-        });
-        playerSelect.onchange = this.onPlayerChange;
+
+        // Only add H264 Converter option
+        const h264Option = document.createElement('option');
+        h264Option.setAttribute('value', 'H264 Converter');
+        h264Option.innerText = 'H264 Converter';
+        h264Option.selected = true;
+        playerSelect.appendChild(h264Option);
+
+        // Set to always use H264 Converter
+        this.playerName = 'H264 Converter';
         this.updateVideoSettingsForPlayer();
 
         const controls = document.createElement('div');
         controls.classList.add('controls', 'control-wrapper');
-        const displayIdLabel = document.createElement('label');
-        displayIdLabel.classList.add('label');
-        displayIdLabel.innerText = 'Display:';
-        controls.appendChild(displayIdLabel);
-        if (!this.displayIdSelectElement) {
-            this.displayIdSelectElement = document.createElement('select');
-        }
-        controls.appendChild(this.displayIdSelectElement);
-        this.displayIdSelectElement.classList.add('input');
-        this.displayIdSelectElement.id = displayIdLabel.htmlFor = `displayId_${this.escapedUdid}`;
-        this.displayIdSelectElement.onchange = this.onDisplayIdChange;
 
-        this.appendBasicInput(controls, {
-            label: 'Bitrate',
-            id: 'bitrate',
-            range: { min: 524288, max: 8388608, step: 524288, formatter: Util.prettyBytes },
-        });
-        this.appendBasicInput(controls, {
-            label: 'Max FPS',
-            id: 'maxFps',
-            range: { min: 1, max: 60, step: 1 },
-        });
-        this.appendBasicInput(controls, { label: 'I-Frame interval', id: 'iFrameInterval' });
-        const fitLabel = document.createElement('label');
-        fitLabel.innerText = 'Fit to screen';
-        fitLabel.classList.add('label');
-        controls.appendChild(fitLabel);
-        const fitToggle = new ToolBoxCheckbox(
-            'Fit to screen',
-            { off: SvgImage.Icon.TOGGLE_OFF, on: SvgImage.Icon.TOGGLE_ON },
-            'fit_to_screen',
-        );
-        fitToggle.getAllElements().forEach((el) => {
-            controls.appendChild(el);
-            if (el instanceof HTMLLabelElement) {
-                fitLabel.htmlFor = el.htmlFor;
-                el.classList.add('input');
-            }
-            if (el instanceof HTMLInputElement) {
-                this.fitToScreenCheckbox = el;
-            }
-        });
-        fitToggle.addEventListener('click', (_, el) => {
-            const element = el.getElement();
-            this.onFitToScreenChanged(element.checked);
-        });
-        this.appendBasicInput(controls, { label: 'Max width', id: 'maxWidth' });
-        this.appendBasicInput(controls, { label: 'Max height', id: 'maxHeight' });
-        this.appendBasicInput(controls, { label: 'Codec options', id: 'codecOptions' });
+        // Simplified settings panel - only show locked resolution and frame rate
+        const settingsTitle = document.createElement('h3');
+        settingsTitle.innerText = 'Streaming Settings';
+        settingsTitle.style.marginBottom = '10px';
+        controls.appendChild(settingsTitle);
 
-        const encoderLabel = document.createElement('label');
-        encoderLabel.classList.add('label');
-        encoderLabel.innerText = 'Encoder:';
-        controls.appendChild(encoderLabel);
-        if (!this.encoderSelectElement) {
-            this.encoderSelectElement = document.createElement('select');
-        }
-        controls.appendChild(this.encoderSelectElement);
-        this.encoderSelectElement.classList.add('input');
-        this.encoderSelectElement.id = encoderLabel.htmlFor = `encoderName_${this.escapedUdid}`;
+        // Resolution display (locked to 1080p)
+        const resolutionWrapper = document.createElement('div');
+        resolutionWrapper.classList.add('setting-item');
+        const resolutionLabel = document.createElement('label');
+        resolutionLabel.classList.add('label');
+        resolutionLabel.innerText = 'Resolution:';
+        resolutionWrapper.appendChild(resolutionLabel);
+        const resolutionValue = document.createElement('span');
+        resolutionValue.classList.add('locked-value');
+        resolutionValue.innerText = '1920x1080 (1080p)';
+        resolutionWrapper.appendChild(resolutionValue);
+        controls.appendChild(resolutionWrapper);
+
+        // Frame rate display (locked to 60fps)
+        const fpsWrapper = document.createElement('div');
+        fpsWrapper.classList.add('setting-item');
+        const fpsLabel = document.createElement('label');
+        fpsLabel.classList.add('label');
+        fpsLabel.innerText = 'Frame Rate:';
+        fpsWrapper.appendChild(fpsLabel);
+        const fpsValue = document.createElement('span');
+        fpsValue.classList.add('locked-value');
+        fpsValue.innerText = '60 FPS';
+        fpsWrapper.appendChild(fpsValue);
+        controls.appendChild(fpsWrapper);
+
+        // Hidden inputs for the locked values (needed for buildVideoSettings)
+        const hiddenMaxWidth = document.createElement('input');
+        hiddenMaxWidth.type = 'hidden';
+        hiddenMaxWidth.id = `maxWidth_${this.escapedUdid}`;
+        hiddenMaxWidth.value = '1920';
+        controls.appendChild(hiddenMaxWidth);
+
+        const hiddenMaxHeight = document.createElement('input');
+        hiddenMaxHeight.type = 'hidden';
+        hiddenMaxHeight.id = `maxHeight_${this.escapedUdid}`;
+        hiddenMaxHeight.value = '1080';
+        controls.appendChild(hiddenMaxHeight);
+
+        const hiddenMaxFps = document.createElement('input');
+        hiddenMaxFps.type = 'hidden';
+        hiddenMaxFps.id = `maxFps_${this.escapedUdid}`;
+        hiddenMaxFps.value = '60';
+        controls.appendChild(hiddenMaxFps);
+
+        const hiddenBitrate = document.createElement('input');
+        hiddenBitrate.type = 'hidden';
+        hiddenBitrate.id = `bitrate_${this.escapedUdid}`;
+        hiddenBitrate.value = '8388608';
+        controls.appendChild(hiddenBitrate);
+
+        const hiddenIFrame = document.createElement('input');
+        hiddenIFrame.type = 'hidden';
+        hiddenIFrame.id = `iFrameInterval_${this.escapedUdid}`;
+        hiddenIFrame.value = '10';
+        controls.appendChild(hiddenIFrame);
+
+        const hiddenCodecOptions = document.createElement('input');
+        hiddenCodecOptions.type = 'hidden';
+        hiddenCodecOptions.id = `codecOptions_${this.escapedUdid}`;
+        hiddenCodecOptions.value = '';
+        controls.appendChild(hiddenCodecOptions);
 
         dialogBody.appendChild(controls);
 
-        const buttonsWrapper = document.createElement('div');
-        buttonsWrapper.classList.add('controls');
-
-        const resetSettingsButton = (this.resetSettingsButton = document.createElement('button'));
-        resetSettingsButton.classList.add('button');
-        resetSettingsButton.innerText = 'Reset settings';
-        resetSettingsButton.addEventListener('click', this.resetSettings);
-        buttonsWrapper.appendChild(resetSettingsButton);
-
-        const loadSettingsButton = (this.loadSettingsButton = document.createElement('button'));
-        loadSettingsButton.classList.add('button');
-        loadSettingsButton.innerText = 'Load settings';
-        loadSettingsButton.addEventListener('click', this.loadSettings);
-        buttonsWrapper.appendChild(loadSettingsButton);
-
-        const saveSettingsButton = (this.saveSettingsButton = document.createElement('button'));
-        saveSettingsButton.classList.add('button');
-        saveSettingsButton.innerText = 'Save settings';
-        saveSettingsButton.addEventListener('click', this.saveSettings);
-        buttonsWrapper.appendChild(saveSettingsButton);
-
-        dialogBody.appendChild(buttonsWrapper);
+        // Remove settings buttons since all settings are locked
+        // Keep only the minimal interface
 
         const dialogFooter = document.createElement('div');
         dialogFooter.classList.add('dialog-footer', blockClass, dialogName);

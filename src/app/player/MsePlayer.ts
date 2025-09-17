@@ -21,10 +21,10 @@ export class MsePlayer extends BasePlayer {
     public static readonly playerCodeName = 'mse';
     public static readonly preferredVideoSettings: VideoSettings = new VideoSettings({
         lockedVideoOrientation: -1,
-        bitrate: 7340032,
+        bitrate: 8388608, // Maximum bitrate
         maxFps: 60,
         iFrameInterval: 10,
-        bounds: new Size(720, 720),
+        bounds: new Size(1920, 1080), // 1080p resolution
         sendFrameMeta: false,
     });
     private static DEFAULT_FRAMES_PER_FRAGMENT = 1;
