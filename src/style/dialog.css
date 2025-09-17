@@ -138,3 +138,31 @@
     grid-gap: 0.2rem;
     align-items: center;
 }
+
+/* Styles for simplified streaming settings */
+.setting-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: 0.5rem 0;
+    padding: 0.3rem;
+    background-color: var(--device-list-default-color);
+    border-radius: 0.3rem;
+    border: 1px solid var(--device-border-color);
+}
+
+.locked-value {
+    font-weight: bold;
+    color: var(--link-color);
+    background-color: var(--device-list-stripe-color);
+    padding: 0.2rem 0.5rem;
+    border-radius: 0.2rem;
+}
+
+.controls h3 {
+    grid-column: 1 / -1;
+    margin: 0 0 1rem 0;
+    color: var(--text-color);
+    border-bottom: 1px solid var(--device-border-color);
+    padding-bottom: 0.5rem;
+}
