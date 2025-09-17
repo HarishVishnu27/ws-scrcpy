@@ -418,7 +418,21 @@ export class StreamClientScrcpy
         const hasPid = descriptor.pid !== -1;
         if (hasPid) {
             const configureButtonId = `configure_${Util.escapeUdid(descriptor.udid)}`;
+            const startStreamButtonId = `start_stream_${Util.escapeUdid(descriptor.udid)}`;
             const e = html`<div class="stream ${blockClass}">
+                <button
+                    ${Attribute.UDID}="${descriptor.udid}"
+                    ${Attribute.FULL_NAME}="${fullName}"
+                    ${Attribute.SECURE}="${params.secure}"
+                    ${Attribute.HOSTNAME}="${params.hostname}"
+                    ${Attribute.PORT}="${params.port}"
+                    ${Attribute.PATHNAME}="${params.pathname}"
+                    ${Attribute.USE_PROXY}="${params.useProxy}"
+                    id="${startStreamButtonId}"
+                    class="active action-button"
+                >
+                    Start Streaming
+                </button>
                 <button
                     ${Attribute.UDID}="${descriptor.udid}"
                     ${Attribute.COMMAND}="${ControlCenterCommand.CONFIGURE_STREAM}"
@@ -434,8 +448,10 @@ export class StreamClientScrcpy
                     Configure stream
                 </button>
             </div>`;
-            const a = e.content.getElementById(configureButtonId);
-            a && (a.onclick = this.onConfigureStreamClick);
+            const startStreamButton = e.content.getElementById(startStreamButtonId);
+            startStreamButton && (startStreamButton.onclick = this.onStartStreamClick);
+            const configureButton = e.content.getElementById(configureButtonId);
+            configureButton && (configureButton.onclick = this.onConfigureStreamClick);
             return e.content;
         }
         return;
@@ -500,5 +516,62 @@ export class StreamClientScrcpy
         if (event.result) {
             HostTracker.getInstance().destroy();
         }
+    };
+
+    private static onStartStreamClick = (event: MouseEvent): void => {
+        const button = event.currentTarget as HTMLAnchorElement;
+        const udid = Util.parseStringEnv(button.getAttribute(Attribute.UDID) || '');
+        const fullName = button.getAttribute(Attribute.FULL_NAME);
+        const secure = Util.parseBooleanEnv(button.getAttribute(Attribute.SECURE) || undefined) || false;
+        const hostname = Util.parseStringEnv(button.getAttribute(Attribute.HOSTNAME) || undefined) || '';
+        const port = Util.parseIntEnv(button.getAttribute(Attribute.PORT) || undefined);
+        const pathname = Util.parseStringEnv(button.getAttribute(Attribute.PATHNAME) || undefined) || '';
+        const useProxy = Util.parseBooleanEnv(button.getAttribute(Attribute.USE_PROXY) || undefined);
+
+        if (!udid) {
+            throw Error(`Invalid udid value: "${udid}"`);
+        }
+        if (typeof port !== 'number') {
+            throw Error(`Invalid port type: ${typeof port}`);
+        }
+
+        // Get the selected interface URL from the interface selector
+        const elements = document.getElementsByName(`${DeviceTracker.AttributePrefixInterfaceSelectFor}${fullName}`);
+        if (!elements || !elements.length) {
+            return;
+        }
+        const select = elements[0] as HTMLSelectElement;
+        const optionElement = select.options[select.selectedIndex];
+        const ws = optionElement.getAttribute(Attribute.URL);
+        if (!ws) {
+            return;
+        }
+
+        // Get the first available player as default
+        const players = StreamClientScrcpy.getPlayers();
+        if (!players.length) {
+            console.error('No players available for streaming');
+            return;
+        }
+        const defaultPlayer = players[0];
+
+        // Create parameters for streaming with default settings
+        const params: ParamsStreamScrcpy = {
+            udid,
+            ws,
+            player: defaultPlayer.playerCodeName,
+            action: ACTION.STREAM_SCRCPY,
+            secure,
+            hostname,
+            port,
+            pathname,
+            useProxy,
+        };
+
+        event.preventDefault();
+
+        // Start streaming directly with default settings
+        StreamClientScrcpy.start(params);
+        HostTracker.getInstance().destroy();
     };
 }
