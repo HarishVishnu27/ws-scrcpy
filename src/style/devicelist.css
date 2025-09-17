@@ -356,6 +356,36 @@ body.list #device_list_menu {
     display: none; /* Hide old style elements */
 }
 
+/* Empty and Error States */
+.empty-state,
+.error-state {
+    text-align: center;
+    padding: 60px 20px;
+    background: var(--main-bg-color);
+    border: 2px dashed var(--device-border-color);
+    border-radius: 12px;
+    margin: 20px;
+    color: var(--text-color-light);
+}
+
+.empty-state h3,
+.error-state h3 {
+    margin: 0 0 16px 0;
+    color: var(--text-color);
+    font-size: 24px;
+}
+
+.empty-state p,
+.error-state p {
+    margin: 0 0 20px 0;
+    font-size: 16px;
+}
+
+.error-state {
+    border-color: #dc3545;
+    background: linear-gradient(135deg, #fff5f5 0%, #ffffff 100%);
+}
+
 #devices .device-list div.desc-block button {
     fill: var(--text-color)
 }
