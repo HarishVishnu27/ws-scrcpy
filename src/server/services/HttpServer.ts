@@ -76,6 +76,14 @@ export class HttpServer extends TypedEmitter<HttpServerEvents> implements Servic
 
     public async start(): Promise<void> {
         this.mainApp = express();
+        
+        // Add JSON middleware for API routes
+        this.mainApp.use(express.json());
+        
+        // Add REST API routes
+        const { createApiRoutes } = await import('../api/routes');
+        this.mainApp.use('/api', createApiRoutes());
+        
         if (HttpServer.SERVE_STATIC && HttpServer.PUBLIC_DIR) {
             this.mainApp.use(PATHNAME, express.static(HttpServer.PUBLIC_DIR));
 
